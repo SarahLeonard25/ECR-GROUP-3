@@ -282,3 +282,4 @@ readr::write_csv(
   admin2_panel,
   "data/admin2_ITN_panel_with_MAP_covariates.csv"
 )
+

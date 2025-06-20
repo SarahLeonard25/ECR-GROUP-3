@@ -96,5 +96,40 @@ write.csv(data_with_ITN_use, "C:/Users/HP EliteBook/OneDrive/Desktop/Group 2/dat
 write.csv(HH_data, "C:/Users/HP EliteBook/OneDrive/Desktop/Group 2/data/HH_data.csv", row.names = FALSE)
 
 write.csv(data6, "C:/Users/HP EliteBook/OneDrive/Desktop/Group 2/data/data6.csv", row.names = FALSE)
+#######################################3
+Ag<-read.csv("C:/Users/HP-ENVY/Documents/B_Analysis_Folder/ECR-GROUP-3/data/DHS/DHS_ITN_person_data.csv")
+# Basic logistic regression is done with base R's glm()
+# But tidy summaries need broom or finalfit
+install.packages("broom")    # Optional: for tidy output
+library(broom)
+#####Value label######
+Ag$slept_under_itn<- factor(Ag$slept_under_itn, levels = c(0, 1), labels = c("No", "Yes"))
+Ag$sex<- factor(Ag$sex, levels = c(1, 2), labels = c("Female", "Male"))
+Ag$slept_under_ever_treated<- factor(Ag$slept_under_ever_treated, levels = c(0, 1), labels = c("No", "Yes"))
+Ag$slept_under_net<- factor(Ag$slept_under_itn, levels = c(0, 1), labels = c("No", "Yes"))
+Ag$slept_under_llin<-factor(Ag$slept_under_llin, levels = c(0, 1), labels = c("No", "Yes"))
 
+View(Ag)
+
+# Run multivariable logistic regression
+Bi_model <- glm(slept_under_itn ~ sex + age + slept_under_ever_treated + slept_under_llin, 
+                data = Ag, 
+                family = "binomial")
+
+# View summary
+summary(Bi_model)
+# Fast, Wald-based odds ratios with confidence intervals
+exp(cbind(OR = coef(Bi_model), confint.default(Bi_model)))
+####Converting the coefficients to log odds###################
+# 95% Confidence intervals for odds ratios
+exp(confint(Bi_model))
+
+#####Coded data checking##############
+# Tidy version
+tidy(model, exponentiate = TRUE, conf.int = TRUE)  # Gives odds ratios and confidence intervals
+table(Ag$sex)
+table(Ag$slept_under_ever_treated)
+table(Ag$slept_under_net)
+table(Ag$slept_under_itn)
+View(Ag)
 
