@@ -9,6 +9,11 @@ library(ggplot2)    # plotting
 library(scales)     # squish() for color capping
 library(stringdist) # fuzzy matching
 
+##install required packeges
+
+install.packages("devtools")
+devtools::install_github("ropensci/rdhs")
+library(rdhs)
 
 ## Read data from csv
 data_1<-read.csv("DHS_ITN_person_data.csv")
