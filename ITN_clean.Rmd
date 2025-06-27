@@ -1,0 +1,535 @@
+---
+title: "ITN_clean"
+author: "Group2"
+date: "`r Sys.Date()`"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##call libraries
+library(dplyr)
+library(ggplot2)
+library(stringr)    # string operations
+library(sf)         # spatial operations
+library(readr)      # CSV I/O
+library(scales)     # squish() for color capping
+library(stringdist) # fuzzy matching
+library(tidyverse)
+library(srvyr)
+
+##check working directory
+getwd()
+
+##import data/ load data
+data <- read_csv("C:/Users/HP EliteBook/OneDrive/Desktop/Group 2/DHS/DHS_ITN_person_data.csv")
+
+
+##data cleaning
+colSums(is.na(data_1))
+
+data_clean<-data[!is.na(data$sex), ] 
+data_clean<-data[!is.na(data$age), ] 
+
+##add required variables
+
+data_1<- data_clean %>%
+  mutate(age_group = case_when(                   ##add age group variable
+    age < 5 ~ "Under 5",
+    age >= 5 & age <= 14 ~ "School-age (5–14)",
+    age >= 15 & age <= 49 ~ "Adults (15–49)",
+    age >= 50 ~ "Older adults (50+)")) %>%
+  mutate(under5=            ##identify under 5yrs, and if they used an ITN
+        ifelse(age<=5,1,0),
+        under5_ITN =
+           ifelse(slept_under_itn =="yes" & under5==1,1,0)) %>% 
+  mutate(pregnant_ITN=            ##identify if a pregnant slept under ITN
+         ifelse(slept_under_itn =="yes" & pregnant==1,1,0)) 
+ 
+ 
+  mutate(ITN_count=ifelse(netid>0 & itn=="true",1,0))
+
+    
+##creating new data sets    
+##  data_2 is in household level. we add the following new variables;
+## 1.total number of individuals in a household, 2. number of people slept under itn,.number of under 5 who slept under itn, 3. total number of under 5, 4. pregnant women who slept under ITN, 5. total number of pregnant women, 6. number of ITN in a household  
+
+data_2<-data_1 %>% 
+        select(country, admin1_name, SurveyId, householdid, 
+        personid, netid, slept_under_net,
+        slept_under_net_types, sex, urban_rural, pregnant, pregnant_ITN,
+        slept_under_itn, SurveyId, age_group, itn, under5, under5_ITN) %>%
+        group_by(householdid) %>% 
+        mutate(HH_count=n_distinct(personid),
+        itn_use =sum(slept_under_itn == "yes"),
+        under5_count =sum(under5 == 1),
+        under5_ITN_count =sum(under5_ITN == 1),
+        pregnant_count =sum(pregnant == 1),
+        pregnant_ITN_count =sum(pregnant_ITN == 1),
+        ITN_count=sum(itn=="TRUE")) %>%
+        select(-c(sex, personid, slept_under_net,
+        slept_under_net_types, pregnant, pregnant_ITN, 
+        slept_under_itn, itn, under5_ITN,age_group, under5)) %>%
+        slice(1)
+
+
+##data_3 is in region level
+##we add the following variables; *  3. household with atleast 1 ITN, 4. ITN adequate (1 ITN for every 2 people(2/3)), 5. ITN_adequate_1(1~if >=0.5, 0~if <0.5)),
+           
+data_3<-data_1 %>% 
+        group_by(householdid) %>% 
+        summarise(itn_count = n_distinct(netid[itn == TRUE], 
+        na.rm = TRUE)) %>%   # Correct: Counts each net only once
+        mutate(atleast_1_ITN=ifelse(itn_count>0,1,0))
+
+##data_4 is a combination of data_2 and data_3
+
+data_4 <- full_join(data_2, data_3, by = "householdid")
+view(data_4)
+
+##going to objectives
+
+itn_summary <- data_1 %>%
+      group_by(admin1_name, age_group, sex) %>%
+      mutate(ITN_use=as.numeric( slept_under_itn== "yes"))
+  summarise(
+    n_people = n(),
+    n_itn_users = sum(ITN_use, na.rm = TRUE),
+    prop_itn_use = mean(ITN_use, na.rm = TRUE)),
+    .groups = "drop")
+##by admin 1
+
+ITN_ownership_admin1 <- data_4 %>%
+  select(country, SurveyId, householdid, admin1_name, atleast_1_ITN) %>% 
+  group_by(admin1_name) %>% 
+  mutate(prop_ITN_ownership = mean(atleast_1_ITN == 1, na.rm = TRUE)*100) %>%
+  slice(1) %>%
+  ungroup() %>% 
+  select(-(atleast_1_ITN))
+    
+#we can use map to present, using the same code we used on friday
+  
+  
+  
+  
+  
+  
+  
+##ITN adequate
+
+ITN_adequate<-data_4 %>% 
+      mutate(ITN_adequate=itn_count/HH_count) %>%
+      mutate(ITN_adequate_1=ifelse(ITN_adequate>=0.5,1,0))
+
+##data to present in map or chat     
+ITN_adequate_1 <- ITN_adequate %>%
+  select(country, SurveyId, householdid, admin1_name,ITN_adequate_1 ) %>% 
+  group_by(admin1_name) %>% 
+  mutate(prop_ITN_adequate = mean(ITN_adequate_1== 1, na.rm = TRUE)*100) %>%
+  slice(1) %>%
+  ungroup() %>% 
+  select(-(ITN_adequate_1))
+  
+##presentation can be in map/chat
+
+
+
+##proportion of ITN usage on under 5yrs
+
+for_under5<-data_1 %>% 
+        select(country, admin1_name, SurveyId, householdid, 
+        personid, netid, slept_under_net,
+        slept_under_net_types, sex, urban_rural, pregnant, pregnant_ITN,
+        slept_under_itn, SurveyId, age_group, itn, under5, under5_ITN) %>%
+        group_by(admin1_name) %>% 
+        mutate( under5_count =sum(under5 == 1),
+        under5_ITN_count =sum(under5_ITN == 1),
+        pregnant_count =sum(pregnant == 1, na.rm = TRUE),
+        pregnant_ITN_count =sum(pregnant_ITN == 1, na.rm = TRUE),
+        ITN_count=sum(itn=="TRUE", na.rm = TRUE)) %>%
+        select(-c(sex, personid, slept_under_net,
+        slept_under_net_types, pregnant, pregnant_ITN, 
+        slept_under_itn, itn, under5_ITN,age_group, under5)) %>%
+        slice(1)
+
+sum(for_under5$under5,data_1$pregnant_ITN)
+sum(under5 == 1)
+
+
+prop_ITN_under5 <- for_under5%>%
+  select(country, SurveyId, householdid, admin1_name, under5_ITN_count, under5_count) %>% 
+  group_by(admin1_name) %>% 
+  mutate(prop_ITN_under5 =(under5_ITN_count/under5_count)*100) %>%
+  slice(1) %>%
+  ungroup() 
+  
+
+##they can be presented through map/table
+
+
+
+##proportion of ITN usage on pregnant women
+
+table(data_1$pregnant,data_1$pregnant_ITN)
+
+ prop_ITN_pregnant <- for_under5%>%
+  select(country, SurveyId, householdid, admin1_name, pregnant_ITN_count, pregnant_count ) %>% 
+  group_by(admin1_name) %>% 
+  mutate(prop_ITN_under5 =(pregnant_ITN_count/pregnant_count)*100) %>%
+  slice(1) %>%
+  ungroup()
+  
+  
+##can be presented in map or chat
+
+
+
+##For ITN utilization
+
+ITN_utilization<-data_1 %>% 
+        select(country, admin1_name, SurveyId, householdid, 
+        personid, sex, urban_rural, slept_under_itn, SurveyId, age_group,
+        itn) %>%
+        mutate(HH_count=n_distinct(householdid$personid),
+        itn_use =sum(slept_under_itn == "yes"),
+        under5_count =sum(under5 == 1),
+        under5_ITN_count =sum(under5_ITN == 1),
+        pregnant_count =sum(pregnant == 1),
+        pregnant_ITN_count =sum(pregnant_ITN == 1),
+        ITN_count=sum(itn=="TRUE")) %>%
+        select(-c(sex, personid, slept_under_net,
+        slept_under_net_types, pregnant, pregnant_ITN, 
+        slept_under_itn, itn, under5_ITN,age_group, under5)) %>%
+        slice(1)
+      
+      
+prop_ITN_utilization<-data_1 %>% 
+        select(country, admin1_name, SurveyId, householdid, 
+        personid, sex, urban_rural, slept_under_itn, SurveyId, age_group,
+        itn) %>%
+        group_by(admin1_name, sex) %>% 
+        mutate(HH_count=n_distinct(interaction(householdid,personid)),
+        itn_use =sum(slept_under_itn == "yes")) %>%
+        mutate(prop_ITN_under5 =(itn_use/HH_count)*100) %>%
+        select(-c(personid, age_group, slept_under_itn)) %>%
+        slice(1)
+prop_ITN_utilization <- data_1 %>%
+  select(country, admin1_name, SurveyId, householdid, 
+         personid, sex, urban_rural, slept_under_itn, age_group, itn) %>%
+  group_by(admin1_name, sex) %>%
+  summarise(
+    HH_count = n_distinct(personid, na.rm = TRUE),
+    itn_use = sum(slept_under_itn == "yes", na.rm = TRUE),
+    prop_ITN_utilization = (itn_use / HH_count) * 100,
+    .groups = "drop"
+  )
+##utilization by sex
+prop_ITN_utilization_sex <- data_1 %>% 
+  group_by(country, admin1_name, SurveyId, sex) %>% 
+  summarise(
+    HH_count = n_distinct(interaction(householdid, personid)),
+    itn_use = sum(slept_under_itn == "yes", na.rm = TRUE),
+    prop_ITN_utilization = (itn_use / HH_count) * 100,
+    .groups = "drop") 
+    
+##present in plot or chat
+    
+##utilization by age
+
+prop_ITN_utilization <- data_1 %>% 
+  group_by(country, admin1_name, SurveyId, age_group) %>% 
+  summarise(
+    HH_count = n_distinct(interaction(householdid, personid)),
+    itn_use = sum(slept_under_itn == "yes", na.rm = TRUE),
+    prop_ITN_utilization = (itn_use / HH_count) * 100,
+    .groups = "drop") 
+
+##prresent on plot or chat
+
+
+
+##for model and sex disparities(chisquare)
+
+##move to another path
+data_for_model<-data_1 %>%
+  mutate(
+  itn_use =ifelse(slept_under_itn == "yes",1,0))
+ 
+##Chi-square test for sex disparity
+
+chisq_test_sex <- chisq.test(
+  table(data_for_model$sex, data_for_model$itn_use == 1))
+  
+print(chisq_test_sex)
+
+##Chi-square test for sex disparity in table
+data_for_model %>%
+  count(sex, itn_use) %>%
+  group_by(sex) %>%
+  mutate(
+    prop = n/sum(n)*100,
+    residual = ifelse(itn_use == 1, 
+      round(chisq.test(table(sex, itn_use))$stdres[,2], 1), NA)) %>%
+  filter(itn_use == 1) %>%
+  select(Sex = sex, "ITN Users" = n, "Utilization %" = prop, "Std. Residual" = residual)
+
+library(tidyverse)
+
+# First create the full contingency table
+full_table <- table(data_for_model$sex, data_for_model$itn_use)
+
+# Then calculate residuals once
+std_residuals <- chisq.test(full_table)$stdres[,2]
+
+# Now create the summary table
+sex_table <- data_for_model %>%
+  count(sex, itn_use) %>%
+  group_by(sex) %>%
+  mutate(
+    prop = n/sum(n)*100,
+    residual = ifelse(
+      itn_use == 1,
+      round(std_residuals[sex], 1),  # Use pre-calculated residuals
+      NA
+    )
+  ) %>%
+  filter(itn_use == 1) %>%
+  select(
+    Sex = sex, 
+    "ITN Users" = n, 
+    "Utilization %" = prop, 
+    "Std. Residual" = residual
+  ) %>%
+  mutate(
+    `Utilization %` = sprintf("%.1f%%", `Utilization %`),  # Format as percentage
+    `Std. Residual` = ifelse(abs(`Std. Residual`) > 3.29,  # Add significance stars
+                            paste0(`Std. Residual`, "***"),
+                            `Std. Residual`)
+  )
+
+# Print the table
+print(sex_table)
+
+write_csv(sex_table, "itn_utilization_by_sex.csv")
+getwd()
+
+##Chi-square test for age disparity
+
+age_chisq <- chisq.test(table(data_for_model$age_group, data_for_model$itn_use==1))
+ print(age_chisq)   
+ 
+library(tidyverse)
+
+##present in table
+library(gt)
+
+data_for_model %>%
+  count(age_group, itn_use) %>%
+  group_by(age_group) %>%
+  mutate(
+    percent = n/sum(n)*100,
+    std_res = c(NA, round(chisq.test(table(data_for_model$age_group, data_for_model$itn_use))$stdres[,2], 1))
+  ) %>%
+  filter(itn_use == 1) %>%
+  gt() %>%
+  fmt_number(columns = c(percent), decimals = 1) %>%
+  cols_label(
+    age_group = "Age Group",
+    n = "ITN Users",
+    percent = "Utilization %",
+    std_res = "Std. Residual"
+  ) %>%
+  tab_header(
+    title = "ITN Utilization by Age Group",
+    subtitle = paste0("χ²(", age_chisq$parameter, ") = ", round(age_chisq$statistic, 1), 
+                     ", p < .001")
+  )
+  
+  
+##option 2
+
+library(tidyverse)
+library(janitor)
+
+# 1. Create the base frequency table
+age_table <- data_for_model %>%
+  tabyl(age_group, itn_use) %>%  # Cross-tabulation
+  adorn_totals("row") %>%         # Add row totals
+  adorn_percentages("row") %>%    # Convert to row percentages
+  adorn_pct_formatting() %>%      # Format as percentages
+  adorn_ns() %>%                 # Show counts and percentages
+  adorn_title("top")             # Add column header
+
+# 2. Add standardized residuals
+std_residuals <- chisq.test(table(data_for_model$age_group, data_for_model$itn_use))$stdres
+age_table$`Std. Residual` <- c(round(std_residuals[,2], 1), NA)  # Add residuals column
+
+# 3. Clean up column names
+colnames(age_table) <- c("Age Group", "Non-Users", "ITN Users", "Utilization %", "Std. Residual")
+
+# 4. Remove the "Total" row if not needed
+age_table <- age_table %>% filter(`Age Group` != "Total")
+
+# 5. Format for publication
+final_table <- age_table %>%
+  mutate(
+    `Utilization %` = str_extract(`ITN Users`, "\\d+\\.\\d+%"),  # Extract just percentage
+    `ITN Users` = str_extract(`ITN Users`, "\\d+"),              # Extract just counts
+    `Non-Users` = str_extract(`Non-Users`, "\\d+")               # Extract just counts
+  ) %>%
+  select(`Age Group`, `ITN Users`, `Non-Users`, `Utilization %`, `Std. Residual`)
+
+# Print the table
+print(final_table)
+
+# Optional: Export to CSV
+write_csv(final_table, "itn_utilization_by_age.csv")
+
+##another
+library(tidyverse)
+
+# 1. Create the frequency table
+age_table <- data_for_model %>% 
+  count(age_group, itn_use) %>% 
+  group_by(age_group) %>% 
+  mutate(prop = n/sum(n)*100) %>% 
+  filter(itn_use == 1) %>% 
+  select(-itn_use)
+
+# 2. Calculate chi-square test ONCE
+chi_test <- chisq.test(table(data_for_model$age_group, data_for_model$itn_use))
+
+# 3. Get standardized residuals for ITN users (column 2)
+std_residuals <- round(chi_test$stdres[,2], 1)
+
+# 4. Match residuals to age groups
+age_table <- age_table %>% 
+  mutate(
+    `Std. Residual` = std_residuals[age_group],
+    Significance = case_when(
+      abs(`Std. Residual`) > 3.29 ~ "***",
+      abs(`Std. Residual`) > 2.58 ~ "**",
+      abs(`Std. Residual`) > 1.96 ~ "*",
+      TRUE ~ ""
+    )
+  )
+
+# 5. Format final table
+final_table <- age_table %>% 
+  rename(
+    "Age Group" = age_group,
+    "ITN Users" = n,
+    "Utilization %" = prop
+  ) %>% 
+  mutate(
+    `Utilization %` = sprintf("%.1f%%", `Utilization %`),
+    `Std. Residual` = paste0(`Std. Residual`, Significance)
+  ) %>% 
+  select(-Significance)
+
+# Print table
+print(final_table)
+
+library(tidyverse)
+### another
+# 1. Create faceted frequency table
+age_table <- data_for_model %>% 
+  group_by(SurveyId, age_group) %>%  # Added SurveyId for faceting
+  count(itn_use) %>% 
+  mutate(prop = n/sum(n)*100) %>% 
+  filter(itn_use == 1) %>% 
+  select(-itn_use)
+
+# 2. Calculate chi-square tests PER FACET
+chi_tests <- data_for_model %>%
+  group_by(SurveyId) %>%  # One test per survey
+  group_modify(~ {
+    tbl <- table(.x$age_group, .x$itn_use)
+    broom::tidy(chisq.test(tbl))
+  })
+
+# 3. Get standardized residuals per facet
+std_residuals <- data_for_model %>%
+  group_by(SurveyId) %>%
+  group_map(~ {
+    res <- chisq.test(table(.x$age_group, .x$itn_use))$stdres[,2]
+    tibble(age_group = names(res), std_residual = round(res, 1))
+  }) %>%
+  bind_rows()
+
+# 4. Merge residuals and format
+final_table <- age_table %>%
+  left_join(std_residuals, by = c("SurveyId", "age_group")) %>%
+  mutate
+  (
+    Significance = case_when(
+      abs(std_residual) > 3.29 ~ "***",
+      abs(std_residual) > 2.58 ~ "**",
+      abs(std_residual) > 1.96 ~ "*",
+      TRUE ~ ""
+    ),
+    `Utilization %` = sprintf("%.1f%%", prop),
+    `Std. Residual` = paste0(std_residual, Significance)
+  ) %>%
+  select(SurveyId, `Age Group` = age_group, `ITN Users` = n, 
+         `Utilization %`, `Std. Residual`)
+
+# Print tables by survey
+final_table %>%
+  split(.$SurveyId) %>%
+  map(~ {
+    gt(.x) %>%
+      tab_header(title = paste("Survey:", first(.x$SurveyId)))
+  })
+
+
+
+       
+##logistic model
+model <- glm(
+  itn_use ~ age_group + sex + urban_rural,
+  family = binomial(link = "logit"),
+  data = data_for_model)
+
+summary(data_for_model[c("age_group", "sex", "urban_rural")])
+
+summary(model)
+exp(cbind(OR = coef(model), confint(model)))
+
+
+## to be summarize
+library(gtsummary)
+
+tbl_regression(
+  model,
+  exponentiate = TRUE,  # Show Odds Ratios
+  label = list(
+    age_group ~ "Age Group",
+    sex ~ "Sex",
+    urban_rural ~ "Residence"
+  )
+) %>%
+  add_global_p() %>%      # Add p-values
+  bold_p() %>%           # Bold significant terms
+  italicize_levels()     # Italicize factor levels
+
+##presenting in forest plot
+library(sjPlot)
+
+plot_model(
+  model,
+  show.values = TRUE,
+  axis.labels = c(
+    "Rural [vs Urban]",
+    "Female [vs Male]",
+    "Age 50+ [vs <5]",
+    "Age 15-49 [vs <5]", 
+    "Age 5-14 [vs <5]"
+  ),
+  title = "Predictors of ITN Use"
+) +
+  geom_hline(yintercept = 1, linetype = "dashed", color = "red")
+
+        
