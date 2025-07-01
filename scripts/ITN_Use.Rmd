@@ -1,6 +1,6 @@
 ---
 title: "Group 3 ECR project"
-output: html_document
+output: word_document
 date: "2025-06-17"
 ---
 
@@ -227,51 +227,6 @@ table_gt
 
 
 ```{r,echo=FALSE, message=FALSE, warning=FALSE}
-##creating plots for age and sex disparities across the countries (MAIN OBJECTIVE)
-
-# Summarize ITN use percentages by survey and age group
-df_age <- data_with_ITN_use %>%
-  group_by(SurveyId, age_group, slept_under_itn) %>%
-  summarise(Count = n(), .groups = "drop") %>%
-  group_by(SurveyId, age_group) %>%
-  mutate(Percentage = Count / sum(Count) * 100,
-         Label = paste0(sum(Count)))
-
-
-
-
-# Optional: reorder age groups
-df_age$age_group <- factor(df_age$age_group,
-                               levels = c("Under 5", "School-age (5–14)", "Adults (15–49)", "Older adults (50+)")
-)
-# Plot
-ggplot(df_age, aes(x = age_group, y = Percentage, fill = slept_under_itn)) +
-  geom_bar(stat = "identity", width = 0.7) +
-  geom_text(data = df_age %>% distinct(SurveyId, age_group, Label),
-            aes(label = Label,x = age_group, y = 105),
-            inherit.aes = FALSE, size = 3, vjust = 0.3)+
-  facet_wrap(~ SurveyId, nrow = 1) +
-  scale_fill_manual(values = c("yes" = "#1f77b4", "no" = "gray70")) +
-  labs(
-    title = "ITN use by age group, survey year & country",
-    x = "Age group",
-    y = "Percentage of people",
-    fill = "Slept under ITN"
-  ) +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 30, hjust = 1))
-
-
-
-
-
-
-
-
-```
-
-
-```{r,echo=FALSE, message=FALSE, warning=FALSE}
 
 #dataset by households
 
@@ -316,321 +271,7 @@ data_hh <- data_hh %>%
 
 ```
 
-```{r,echo=FALSE, message=FALSE, warning=FALSE}
-## Age and sex disparities by country
-##Creating dataset for disparities
-
-data1 <- data_with_ITN_use %>% 
-   group_by(householdid,SurveyId,age_group) %>% 
-        mutate(HH_count=n_distinct(sn),
-        itn_use =sum(slept_under_itn == "yes"),
-        male_count = sum(sex =="male"),
-        female_count = sum(sex =="female"),
-        ITN_count= n_distinct(netid[itn == TRUE],na.rm = TRUE))
-        
-
-data1 <- data1 %>%
-  mutate(
-    net_per_person = ITN_count / HH_count,
-    enough_itn = ifelse(net_per_person >= 0.5, 1,0),
-    male_enough_itn = sum(enough_itn[sex == "male"], na.rm = TRUE),
-    atleast_1_ITN=ifelse(ITN_count>0,1,0)) %>% 
-  filter(atleast_1_ITN == 1) %>% 
- select(-c(sn, personid, slept_under_net,
-        slept_under_net_types, pregnant, pregnant_ITN, 
-        slept_under_itn, itn, under5_ITN,age,brand, under5,netid,ITN_count)) %>%
-        slice(1)
- 
-
-
-
-# plot_data <- data1 %>%
-#   filter(!is.na(itn_use), !is.na(sex), !is.na(age_group), !is.na(enough_itn), !is.na(atleast_1_ITN)) %>%
-#   group_by(country, age_group, sex, enough_itn, atleast_1_ITN) %>%
-#   summarise(
-#     percent_use = mean(itn_use, na.rm = TRUE) * 100,
-#     .groups = "drop"
-#   )
-# 
-# plot_data_filtered <- plot_data %>%
-#   filter(enough_itn == 1)  # Keep only those with "enough nets"
-# 
-# 
-# library(ggplot2)
-# 
-# # Create line type based on sex and enough_itn
-# plot_data_filtered <- plot_data %>%
-#   mutate(
-#     line_type = case_when(
-#       sex == "male" & enough_itn == 1 ~ "Males: enough nets",
-#       sex == "male" & enough_itn == 0 ~ "Males: ITN >0 & <0.5",
-#       sex == "female" & enough_itn == 1 ~ "Females: enough nets",
-#       sex == "female" & enough_itn == 0 ~ "Females: ITN >0 & <0.5"
-#     ),
-#     line_type = factor(line_type, levels = c(
-#       "Males: ITN >0 & <0.5", "Males: enough nets",
-#       "Females: ITN >0 & <0.5", "Females: enough nets"
-#     ))
-#   )
-# 
-# #rearranging the age groups
-# 
-# plot_data_filtered$age_group <- factor(plot_data_filtered$age_group,
-#                                levels = c("Under 5", "School-age (5–14)", "Adults (15–49)", "Older adults (50+)")
-# )
-# 
-# 
-# 
-# 
-# ggplot(plot_data_filtered, aes(x = age_group, y = percent_use, group = line_type)) +
-#   geom_line(aes(color = line_type, linetype = line_type), size = 1.2) +
-#   facet_wrap(~country) +
-#   scale_color_manual(values = c(
-#     "Males: ITN >0 & <0.5" = "grey60",
-#     "Males: enough nets" = "grey10",
-#     "Females: ITN >0 & <0.5" = "orchid",
-#     "Females: enough nets" = "purple"
-#   )) +
-#   scale_linetype_manual(values = c(
-#     "Males: ITN >0 & <0.5" = "dashed",
-#     "Males: enough nets" = "solid",
-#     "Females: ITN >0 & <0.5" = "dashed",
-#     "Females: enough nets" = "solid"
-#   )) +
-#   labs(
-#     title = "ITN Use by Age, Sex and Net Supply",
-#     y = "Percent who slept under an ITN",
-#     x = "Age group of household member",
-#     color = "Group",
-#     linetype = "Group"
-#   ) +
-#   theme_minimal(base_size = 14) +
-#   theme(legend.position = "right")+
-#   theme(axis.text.x = element_text(angle = 90, vjust = 1))
-# 
-# 
-# 
-# 
-# 
-
-
-
-```
-
-```{r,echo=FALSE, message=FALSE, warning=FALSE}
-#sample mapping the itn utilization by district level, here the data used is the aggregated one and not at in person level.
-
-
-data_merged <- left_join(tz_shapefile_adm2, data_admn2, by = c("name_2" = "admin2_name"))  
-
-
-
-ggplot() +
-  geom_sf(data = tz_shapefile_adm2)+
-  geom_sf(
-    data   = data_merged,
-    aes(fill = prop_use),     #prop_use
-    colour = "grey50", size = 0.1)+
-  coord_sf() +
-  scale_fill_viridis_c(
-    option   = "viridis",
-    na.value = "lightgrey",
-    limits   = c(0, 0.9),
-    oob      = scales::squish,
-    name     = "ITN use\nproportion") +
-  labs(title    = "District level ITN utilization") +
-  theme_void(base_size = 14) +
-  theme(
-    plot.title    = element_text(face = "bold", size = 16, hjust = 0.5),
-    plot.subtitle = element_text(size = 12, hjust = 0.5),
-    legend.title  = element_text(size = 12),
-    legend.text   = element_text(size = 10)
-  )
-
-
-# 
-# ##map by regions
-# data_merged2 <- left_join(tz_shapefile_adm1, HH_ITN_utilization_variables, by = c("name_1" = "admin1_name"))  
-# 
-# data_merged <- data_merged %>% 
-#   filter()
-# 
-# ggplot() +
-#   geom_sf(
-#     data   = aggr_shapefile1,
-#     aes(fill = prop_use),     #prop_use
-#     colour = "grey50", size = 0.1)+
-#   coord_sf() +
-#   scale_fill_viridis_c(
-#     option   = "viridis",
-#     na.value = "lightgrey",
-#     limits   = c(0, 0.9),
-#     oob      = scales::squish,
-#     name     = "ITN use\nproportion") +
-#   labs(title    = "District level ITN utilization") +
-#   theme_void(base_size = 14) +
-#   theme(
-#     plot.title    = element_text(face = "bold", size = 16, hjust = 0.5),
-#     plot.subtitle = element_text(size = 12, hjust = 0.5),
-#     legend.title  = element_text(size = 12),
-#     legend.text   = element_text(size = 10)
-#   )
-
-
-
-
-```
-
-
-
-```{r, echo=FALSE, out.width='80%', fig.align='right', message=FALSE, warning=FALSE}
-
-## itn use by sex across the regions
-# Group also by SurveyId
-itn_region_sex_survey <- data_with_ITN_use %>%
- filter(!is.na(itn_use), !is.na(sex), !is.na(admin1_name)) %>%
-  group_by(country, SurveyId, admin1_name,urban_rural, sex) %>%
-  summarise(
-    prop_itn_use = mean(itn_use, na.rm = TRUE) * 100,
-    n = n(),
-    .groups = "drop"
-  )
-
-# Plotting in column bars
-ggplot(itn_region_sex_survey, aes(x = reorder(admin1_name, -prop_itn_use), y = prop_itn_use, fill = sex)) +
-  geom_col(position = "dodge") +
-  facet_wrap(country ~ SurveyId, scales = "free_x") +
-  labs(
-    title = "ITN Utilization by Sex Across Regions and Surveys",
-    x = "Region",
-    y = "ITN Use (%)",
-    fill = "Sex"
-  ) +
-  scale_fill_manual(values = c("male" = "#1f78b4", "female" = "#e31a1c")) +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 90, vjust = 1))
-
-
-
-# # Reorder region names within each (country, SurveyId) group
-# itn_region_sex_survey <- itn_region_sex_survey %>%
-#   group_by(country, SurveyId) %>%
-#   mutate(admin1_name_ordered = fct_reorder(admin1_name, prop_itn_use)) %>%
-#   ungroup()
-# 
-# ### showing using the trend
-# 
-# ggplot(itn_region_sex_survey, aes(x = admin1_name_ordered, y = prop_itn_use, group = sex, color = sex)) +
-#   geom_line(size = 1.1) +
-#   geom_point(size = 2) +
-#   facet_wrap(~ interaction(country, SurveyId), ncol = 2, scales = "free_x") +
-#   labs(
-#     title = "ITN Utilization Trends by Sex Across Regions and Surveys",
-#     x = "Region",
-#     y = "ITN Use (%)",
-#     color = "Sex"
-#   ) +
-#   scale_color_manual(values = c("male" = "#1f78b4", "female" = "#e31a1c")) +
-#   theme_minimal(base_size = 14) +
-#   theme(
-#     axis.text.x = element_text(angle = 90, vjust = 0.5, size = 4),
-#     strip.text = element_text(face = "bold", size = 11),
-#     plot.title = element_text(face = "bold", size = 14)
-#   )
-# 
-# 
-# #here we are plotting the same trend check with addition to the urban_rural variable
-# # so we will choose which one is the best to take
-# 
-# ggplot(itn_region_sex_survey, aes(x = admin1_name, y = prop_itn_use, group = sex, color = sex)) +
-#   geom_line(size = 1) +
-#   geom_point(size = 2) +
-#   facet_grid(urban_rural ~ interaction(country, SurveyId), scales = "free_x") +
-#   labs(
-#     title = "ITN Utilization by Sex Across Regions, Urban/Rural, and Surveys",
-#     x = "Region",
-#     y = "ITN Use (%)",
-#     color = "Sex"
-#   ) +
-#   scale_color_manual(values = c("male" = "#1f78b4", "female" = "#e31a1c")) +
-#   theme_minimal(base_size = 12) +
-#   theme(
-#     axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
-#     strip.text = element_text(face = "bold", size = 10),
-#     plot.title = element_text(face = "bold", size = 14)
-#   )
-# 
-
-```
-
-
-```{r,echo=FALSE, message=FALSE, warning=FALSE}
-# #plotting for itn ownership and usage by regions
-# own_usage <- data_with_ITN_use %>% 
-#   filter(!is.na(itn_use), !is.na(itn), !is.na(admin1_name)) %>%
-#   select(country, SurveyId, itn,itn_use, admin1_name) %>% 
-#   group_by(admin1_name) %>%
-#    mutate(ITN_use_count=n_distinct(itn_use))%>%
-#    mutate(ITN_count=n_distinct(itn)) %>% 
-#    slice(1)
-# 
-# # Plotting in column bars
-# ggplot(itn_region_sex_survey, aes(x = reorder(admin1_name, -prop_itn_use), y = prop_itn_use, fill = sex)) +
-#   geom_col(position = "dodge") +
-#   facet_grid(country ~ SurveyId, scales = "free_x") +
-#   labs(
-#     title = "ITN Utilization by Sex Across Regions and Surveys",
-#     x = "Region",
-#     y = "ITN Use (%)",
-#     fill = "Sex"
-#   ) +
-#   scale_fill_manual(values = c("male" = "#1f78b4", "female" = "#e31a1c")) +
-#   theme_minimal() +
-#   theme(axis.text.x = element_text(angle = 90, vjust = 1))
-# 
-#
-
-######plotting for ownership
-
-#bar charts showing net per person by regions 
-
-# data_hh %>%
-#   group_by(admin1_name, country) %>%
-#   summarise(
-#     avg_net_per_person = mean(net_per_person, na.rm = TRUE)
-#   ) %>%
-#   ggplot(aes(x = reorder(admin1_name, -avg_net_per_person), y = avg_net_per_person, fill = country)) +
-#   geom_col() +
-#   facet_wrap(~country, scales = "free_y")+
-#   coord_flip() +
-#   labs(
-#     title = "Net per Person by Region",
-#     x = "Region",
-#     y = "ITNs per Household Member",
-#     fill = "Country"
-#   ) +
-#   theme_minimal()
-
-
-####### ITN UTILIZATION VS HH SIZE, scatter plot with smoothed trend
-
-#net per person vs household size
-library(ggplot2)
-
-ggplot(data_hh, aes(x = HH_count, y = net_per_person)) +
-  geom_jitter(alpha = 0.2, color = "#69b3a2") +
-  geom_smooth(method = "gam", formula = y ~ s(x), color = "darkblue") +
-  facet_wrap(~country)+
-  labs(
-    title = "Net per Person vs Household Size",
-    x = "Household Size",
-    y = "Net per Person"
-  ) +
-  coord_cartesian(ylim = c(0, 1)) + 
-  theme_minimal()
-
-
-
+```{r}
 library(dplyr)
 library(stringr)
 
@@ -638,7 +279,7 @@ library(stringr)
 
 # Summarize ITN ownership by region
 region_itn <- data_hh %>%
-  group_by(admin1_name, country) %>%
+  group_by(admin1_name, country, SurveyId) %>%
   summarise(itn_ownership = mean(atleast_1_ITN, na.rm = TRUE)) %>% 
   ungroup()# Proportion
 
@@ -651,13 +292,14 @@ map_data <- comb_shp_adm1 %>%
   left_join(region_itn, by = c("country", "name_1" = "admin1_name"))
 
 
-ggplot(map_data) +
+ggplot(map_data %>% filter(!is.na(SurveyId))) +
   geom_sf(aes(fill = itn_ownership), color = "white", size = 0.2) +
   scale_fill_viridis_c(
     name = "ITN Ownership\n(Proportion)",
     limits = c(0, 1),
     labels = scales::percent_format(accuracy = 1)
   ) +
+  facet_wrap(~SurveyId)+
   labs(
     title = "Proportion of Households Owning at Least One ITN",
     subtitle = "Aggregated to Regional Level",
@@ -665,11 +307,92 @@ ggplot(map_data) +
   ) +
   theme_void(base_size = 14) +
   theme(
-    plot.title = element_text(face = "bold", hjust = 0.5),
-    legend.position = "right"
+    strip.text = element_text(face = "bold"),# Bold facet titles
+     plot.title = element_text(face = "bold", hjust = 0.5))
+  
+
+
+
+
+
+
+
+
+
+
+```
+
+
+
+
+```{r, echo=FALSE, out.width='80%', fig.align='right', message=FALSE, warning=FALSE}
+
+library(dplyr)
+
+# Aggregate ITN utilization by region, sex, country, and survey
+itn_summary <- data_with_ITN_use %>%
+  group_by(country, admin1_name, sex, SurveyId) %>%
+  summarise(
+    total = n(),
+    used_itn = sum(itn_use, na.rm = TRUE),
+    itn_use = round((used_itn / total) * 100, 1)
+  ) %>%
+  ungroup()
+
+
+ #Merge with your ITN utilization data
+map_data2 <- comb_shp_adm1 %>%
+  left_join(itn_summary, by = c("name_1" = "admin1_name", "country" = "country"))
+
+# Plotting the maps
+ggplot(data = map_data2 %>% filter(!is.na(SurveyId))) +         
+  geom_sf(aes(fill = itn_use)) +
+  facet_wrap(~ SurveyId)+
+  scale_fill_viridis_c(name = "ITN Use (%)") +
+  theme_minimal() +
+  theme_void(base_size = 14) +
+   theme(
+    strip.text = element_text(face = "bold"),# Bold facet titles
+     plot.title = element_text(face = "bold", hjust = 0.5))+
+labs(
+    title = "ITN Utilization in Tanzania and Zambia",
+    caption = "Data source: DHS Surveys"
+  )
+
+```
+
+
+```{r, out.width='200%', fig.align='right', message=FALSE, warning=FALSE}
+
+#ITN utilization by age groups and sex across the regions
+
+itn_age_sex_summary <- data_with_ITN_use %>%
+  filter(!is.na(age_group), !is.na(sex), !is.na(itn_use)) %>%
+  group_by(country, sex, age_group,SurveyId) %>%
+  summarise(
+    prop_use = mean(itn_use, na.rm = TRUE),
+    .groups = "drop"
   )
 
 
+ggplot(itn_age_sex_summary, aes(x = age_group, y = prop_use * 100, fill = sex)) +
+  geom_col(position = "dodge") +
+  facet_wrap(~country + SurveyId) +  # Fixed facet syntax (use `+` for multiple vars)
+  labs(
+    title = "ITN Use by Age Group and Sex",
+    x = "Age Group",
+    y = "ITN Use (%)",
+    fill = "Sex"  # Legend title
+  ) +
+  scale_fill_manual(
+    values = c("male" = "#0072B2", "female" = "#D55E00")  # Blue/orange (colorblind-friendly)
+   ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),  # Rotate x-axis labels
+    strip.text = element_text(face = "bold"),# Bold facet titles
+     plot.title = element_text(face = "bold", hjust = 0.5))
+
 
 
 
@@ -677,56 +400,31 @@ ggplot(map_data) +
 
 
 ```
+
 
 ```{r,echo=FALSE, message=FALSE, warning=FALSE}
-# ##a sample for objective 3
-# library(dplyr)
-# library(dplyr)
-# 
-# data2 <- data1 %>%
-#   mutate(
-#     used_itn = case_when(
-#       slept_under_net_types == "treated nets" ~ 1,
-#       slept_under_net_types == "treated and untreated nets" ~ 1,
-#       TRUE ~ 0  # includes "none" and "untreated net"
-#     )
-#   )
-# 
-# 
-# household_itn_use <- data2 %>%
-#   group_by(householdid) %>%
-#   summarise(
-#     itn_users = sum(used_itn),
-#     hh_size = n(),
-#     prop_itn_use = itn_users / hh_size
-#   )
-# 
-# 
-# library(dplyr)
-# 
-# # Step 1: Summarize number of people who used ITNs per household
-# hh_use_summary <- data2 %>%
-#   group_by(householdid) %>%
-#   summarise(
-#     itn_users = sum(used_itn, na.rm = TRUE),  # total ITN users in HH
-#     hh_size = n()                             # household size (optional)
-#   )
-# 
-# # Step 2: Join with household-level data to get number of ITNs
-# # Assuming 'hh_data' contains num_itns per household
-# hh_use_summary <- hh_use_summary %>%
-#   left_join(select(data2, householdid, itn_users), by = "householdid") %>%
-#   distinct(householdid, .keep_all = TRUE)
-# 
-# # Step 3: Calculate capacity and compare with users
-# hh_use_summary <- hh_use_summary %>%
-#   mutate(
-#     itn_capacity = num_itns * 2,                             # ITNs assumed to serve 2 people each
-#     prop_itn_used_vs_capacity = pmin(itn_users / itn_capacity, 1)  # cap at 100%
-#   )
-# 
-# 
- 
+
+####### ITN UTILIZATION VS HH SIZE, scatter plot with smoothed trend
+
+#net per person vs household size
+
+ggplot(data_hh, aes(x = HH_count, y = net_per_person)) +
+  geom_jitter(alpha = 0.2, color = "#69b3a2") +
+  geom_smooth(method = "gam", formula = y ~ s(x), color = "darkblue") +
+  facet_wrap(country~SurveyId)+
+  labs(
+    title = "Net per Person vs Household Size",
+    x = "Household Size",
+    y = "Net per Person"
+  ) +
+  coord_cartesian(ylim = c(0, 1)) + 
+  theme_minimal()+
+  theme(
+    strip.text = element_text(face = "bold"),# Bold facet titles
+     plot.title = element_text(face = "bold", hjust = 0.5))
+
+
 
 
 ```
+
